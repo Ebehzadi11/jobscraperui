@@ -18,6 +18,9 @@ export interface Job {
   lastUpdated: string;
   status: 'active' | 'archived';
   sourceUrl: string;
+  seniority?: string;
+  employmentType?: string;
+  department?: string;
 }
 
 export interface Task {
