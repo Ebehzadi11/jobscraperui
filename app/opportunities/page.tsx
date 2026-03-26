@@ -1,28 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { mockOpportunities } from '@/lib/mock-data';
 import { Opportunity } from '@/lib/types';
-import { TrendingUp, DollarSign, Building2, FileText, Send, ShoppingCart } from 'lucide-react';
+import { fetchOpportunities } from '@/lib/queries';
+import { TrendingUp, DollarSign, Building2, FileText, Send, ShoppingCart, Clock, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 export default function OpportunitiesPage() {
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const totalRoles = mockOpportunities.reduce((sum, opp) => sum + opp.totalRoles, 0);
-  const totalSalary = mockOpportunities.reduce((sum, opp) => sum + opp.avgSalary * opp.totalRoles, 0);
-  const totalSavings = mockOpportunities.reduce((sum, opp) => sum + opp.estimatedSavings, 0);
-  const avgAutomation = Math.round(
-    mockOpportunities.reduce((sum, opp) => sum + opp.automationPercentage, 0) / mockOpportunities.length
-  );
+  useEffect(() => {
+    async function loadOpportunities() {
+      try {
+        const data = await fetchOpportunities();
+        setOpportunities(data);
+      } catch (error) {
+        console.error('Error loading opportunities:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadOpportunities();
+  }, []);
+
+  const totalRoles = opportunities.reduce((sum, opp) => sum + opp.totalRoles, 0);
+  const totalSalary = opportunities.reduce((sum, opp) => sum + opp.avgSalary * opp.totalRoles, 0);
+  const totalSavings = opportunities.reduce((sum, opp) => sum + opp.estimatedSavings, 0);
+  const avgAutomation = opportunities.length > 0
+    ? Math.round(opportunities.reduce((sum, opp) => sum + opp.automationPercentage, 0) / opportunities.length)
+    : 0;
 
   const handleRowClick = (opportunity: Opportunity) => {
     setSelectedOpportunity(opportunity);
@@ -101,61 +117,77 @@ export default function OpportunitiesPage() {
             <CardTitle>Opportunity Pipeline</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Open Roles</TableHead>
-                    <TableHead>Avg Salary</TableHead>
-                    <TableHead>Automation %</TableHead>
-                    <TableHead>Est. Savings</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mockOpportunities.map((opp) => (
-                    <TableRow
-                      key={opp.id}
-                      onClick={() => handleRowClick(opp)}
-                      className="cursor-pointer"
-                    >
-                      <TableCell className="font-medium">{opp.company}</TableCell>
-                      <TableCell>{opp.role}</TableCell>
-                      <TableCell>{opp.totalRoles}</TableCell>
-                      <TableCell>${(opp.avgSalary / 1000).toFixed(0)}K</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 rounded-full bg-muted h-2">
-                            <div
-                              className={cn(
-                                'h-2 rounded-full',
-                                opp.automationPercentage >= 80
-                                  ? 'bg-green-500'
-                                  : opp.automationPercentage >= 60
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
-                              )}
-                              style={{ width: `${opp.automationPercentage}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-semibold">{opp.automationPercentage}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm font-semibold text-green-600">
-                          ${(opp.estimatedSavings / 1000).toFixed(0)}K
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={opp.status} />
-                      </TableCell>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
+                <p className="text-sm text-muted-foreground">Loading opportunities...</p>
+              </div>
+            ) : opportunities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Opportunities Yet</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  Opportunities will be automatically identified based on job automation analysis
+                  and hiring patterns. Check back once more jobs have been analyzed.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Open Roles</TableHead>
+                      <TableHead>Avg Salary</TableHead>
+                      <TableHead>Automation %</TableHead>
+                      <TableHead>Est. Savings</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {opportunities.map((opp) => (
+                      <TableRow
+                        key={opp.id}
+                        onClick={() => handleRowClick(opp)}
+                        className="cursor-pointer"
+                      >
+                        <TableCell className="font-medium">{opp.company}</TableCell>
+                        <TableCell>{opp.role}</TableCell>
+                        <TableCell>{opp.totalRoles}</TableCell>
+                        <TableCell>${(opp.avgSalary / 1000).toFixed(0)}K</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 rounded-full bg-muted h-2">
+                              <div
+                                className={cn(
+                                  'h-2 rounded-full',
+                                  opp.automationPercentage >= 80
+                                    ? 'bg-green-500'
+                                    : opp.automationPercentage >= 60
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500'
+                                )}
+                                style={{ width: `${opp.automationPercentage}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-semibold">{opp.automationPercentage}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm font-semibold text-green-600">
+                            ${(opp.estimatedSavings / 1000).toFixed(0)}K
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={opp.status} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

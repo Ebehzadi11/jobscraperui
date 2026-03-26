@@ -3,17 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { mockScraperRuns } from '@/lib/mock-data';
+import { fetchScraperRuns } from '@/lib/queries';
 import { Activity, CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle, RefreshCw, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-export default function AdminPage() {
-  const successfulRuns = mockScraperRuns.filter((run) => run.status === 'success').length;
-  const failedRuns = mockScraperRuns.filter((run) => run.status === 'failed').length;
-  const totalJobsScraped = mockScraperRuns.reduce((sum, run) => sum + run.jobsScraped, 0);
-  const avgSuccessRate = (
-    mockScraperRuns.reduce((sum, run) => sum + run.successRate, 0) / mockScraperRuns.length
-  ).toFixed(1);
+export default async function AdminPage() {
+  const scraperRuns = await fetchScraperRuns();
+
+  const successfulRuns = scraperRuns.filter((run) => run.status === 'success').length;
+  const failedRuns = scraperRuns.filter((run) => run.status === 'failed').length;
+  const totalJobsScraped = scraperRuns.reduce((sum, run) => sum + run.jobsScraped, 0);
+  const avgSuccessRate = scraperRuns.length > 0
+    ? (scraperRuns.reduce((sum, run) => sum + run.successRate, 0) / scraperRuns.length).toFixed(1)
+    : '0.0';
 
   return (
     <AppLayout>
@@ -40,7 +42,7 @@ export default function AdminPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{mockScraperRuns.length}</div>
+              <div className="text-3xl font-bold">{scraperRuns.length}</div>
               <p className="text-xs text-muted-foreground mt-1">last 24 hours</p>
             </CardContent>
           </Card>
@@ -55,7 +57,7 @@ export default function AdminPage() {
             <CardContent>
               <div className="text-3xl font-bold text-green-600">{successfulRuns}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {((successfulRuns / mockScraperRuns.length) * 100).toFixed(0)}% success rate
+                {scraperRuns.length > 0 ? ((successfulRuns / scraperRuns.length) * 100).toFixed(0) : 0}% success rate
               </p>
             </CardContent>
           </Card>
@@ -106,7 +108,7 @@ export default function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockScraperRuns.map((run) => (
+                  {scraperRuns.map((run) => (
                     <TableRow key={run.id}>
                       <TableCell className="font-medium">{run.source}</TableCell>
                       <TableCell>
@@ -181,8 +183,8 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {Array.from(new Set(mockScraperRuns.map((r) => r.source))).map((source) => {
-                  const sourceRuns = mockScraperRuns.filter((r) => r.source === source);
+                {Array.from(new Set(scraperRuns.map((r) => r.source))).map((source) => {
+                  const sourceRuns = scraperRuns.filter((r) => r.source === source);
                   const avgRate =
                     sourceRuns.reduce((sum, r) => sum + r.successRate, 0) / sourceRuns.length;
                   const health =
@@ -220,7 +222,7 @@ export default function AdminPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockScraperRuns
+                {scraperRuns
                   .filter((run) => run.errors > 0)
                   .slice(0, 5)
                   .map((run) => (
