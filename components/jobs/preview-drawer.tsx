@@ -4,7 +4,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Job } from '@/lib/types';
-import { getTasksByJobId } from '@/lib/mock-data';
 import { ExternalLink, MapPin, DollarSign, TrendingUp, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
@@ -17,8 +16,6 @@ interface PreviewDrawerProps {
 
 export function PreviewDrawer({ job, open, onClose }: PreviewDrawerProps) {
   if (!job) return null;
-
-  const tasks = getTasksByJobId(job.id).slice(0, 3);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -77,37 +74,36 @@ export function PreviewDrawer({ job, open, onClose }: PreviewDrawerProps) {
 
           <Separator />
 
-          <div>
-            <h4 className="text-sm font-semibold">Top Automatable Tasks</h4>
-            <div className="mt-3 space-y-2">
-              {tasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{task.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{task.category}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-green-600">
-                      {task.automationPercentage}%
-                    </p>
+          {(job.tools.length > 0 || job.skills.length > 0) && (
+            <div className="space-y-3">
+              {job.tools.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Tools</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {job.tools.map((tool) => (
+                      <Badge key={tool} variant="secondary">
+                        {tool}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
+              {job.skills.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {job.skills.map((skill) => (
+                      <Badge key={skill} variant="outline">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           <Separator />
-
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Tools & Skills</h4>
-            <div className="flex flex-wrap gap-2">
-              {job.tools.map((tool) => (
-                <Badge key={tool} variant="secondary">
-                  {tool}
-                </Badge>
-              ))}
-            </div>
-          </div>
 
           <div className="flex gap-2">
             <Button asChild className="flex-1">

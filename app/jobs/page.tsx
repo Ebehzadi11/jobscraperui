@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { JobsTable } from '@/components/jobs/jobs-table';
 import { FilterPanel, FilterState } from '@/components/jobs/filter-panel';
 import { PreviewDrawer } from '@/components/jobs/preview-drawer';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import { mockJobs } from '@/lib/mock-data';
+import { Search, Loader2 } from 'lucide-react';
 import { Job } from '@/lib/types';
+import { fetchJobs, fetchDistinctCompanies } from '@/lib/queries';
 
 export default function JobsPage() {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterState>({
     companies: [],
@@ -20,8 +23,27 @@ export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [jobsData, companiesData] = await Promise.all([
+          fetchJobs(),
+          fetchDistinctCompanies(),
+        ]);
+        setJobs(jobsData);
+        setCompanies(companiesData);
+      } catch (error) {
+        console.error('Error loading jobs data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
   const filteredJobs = useMemo(() => {
-    return mockJobs.filter((job) => {
+    return jobs.filter((job) => {
       const matchesSearch =
         searchQuery === '' ||
         job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -39,7 +61,7 @@ export default function JobsPage() {
 
       return matchesSearch && matchesCompany && matchesRemoteType && matchesAutomation;
     });
-  }, [searchQuery, filters]);
+  }, [jobs, searchQuery, filters]);
 
   const handleRowClick = (job: Job) => {
     setSelectedJob(job);
@@ -58,7 +80,7 @@ export default function JobsPage() {
 
         <div className="flex gap-6">
           <div className="w-64 flex-shrink-0">
-            <FilterPanel onFilterChange={setFilters} />
+            <FilterPanel onFilterChange={setFilters} companyOptions={companies} />
           </div>
 
           <div className="flex-1 space-y-4">
@@ -74,11 +96,18 @@ export default function JobsPage() {
 
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Showing {filteredJobs.length} of {mockJobs.length} jobs
+                Showing {filteredJobs.length} of {jobs.length} jobs
               </span>
             </div>
 
-            <JobsTable data={filteredJobs} onRowClick={handleRowClick} />
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading jobs...</span>
+              </div>
+            ) : (
+              <JobsTable data={filteredJobs} onRowClick={handleRowClick} />
+            )}
           </div>
         </div>
       </div>

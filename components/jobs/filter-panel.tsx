@@ -10,6 +10,7 @@ import { useState } from 'react';
 
 interface FilterPanelProps {
   onFilterChange: (filters: FilterState) => void;
+  companyOptions?: string[];
 }
 
 export interface FilterState {
@@ -18,12 +19,11 @@ export interface FilterState {
   automationRange: [number, number];
 }
 
-export function FilterPanel({ onFilterChange }: FilterPanelProps) {
+export function FilterPanel({ onFilterChange, companyOptions = [] }: FilterPanelProps) {
   const [companies, setCompanies] = useState<string[]>([]);
   const [remoteTypes, setRemoteTypes] = useState<string[]>([]);
   const [automationRange, setAutomationRange] = useState<[number, number]>([0, 100]);
 
-  const companyOptions = ['TechCorp', 'SalesFlow Inc', 'DataWorks', 'MediaHub', 'FinanceFirst', 'HealthTech Solutions'];
   const remoteOptions = [
     { value: 'remote', label: 'Remote' },
     { value: 'hybrid', label: 'Hybrid' },
@@ -70,22 +70,26 @@ export function FilterPanel({ onFilterChange }: FilterPanelProps) {
       <CardContent className="space-y-6">
         <div className="space-y-3">
           <Label className="text-sm font-semibold">Company</Label>
-          <div className="space-y-2">
-            {companyOptions.map((company) => (
-              <div key={company} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`company-${company}`}
-                  checked={companies.includes(company)}
-                  onCheckedChange={(checked) => handleCompanyChange(company, !!checked)}
-                />
-                <label
-                  htmlFor={`company-${company}`}
-                  className="text-sm cursor-pointer"
-                >
-                  {company}
-                </label>
-              </div>
-            ))}
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {companyOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No companies available</p>
+            ) : (
+              companyOptions.map((company) => (
+                <div key={company} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`company-${company}`}
+                    checked={companies.includes(company)}
+                    onCheckedChange={(checked) => handleCompanyChange(company, !!checked)}
+                  />
+                  <label
+                    htmlFor={`company-${company}`}
+                    className="text-sm cursor-pointer"
+                  >
+                    {company}
+                  </label>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

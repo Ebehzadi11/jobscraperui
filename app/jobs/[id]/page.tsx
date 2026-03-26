@@ -6,21 +6,36 @@ import { Separator } from '@/components/ui/separator';
 import { TaskBreakdownTable } from '@/components/job-detail/task-breakdown-table';
 import { AutomationSummary } from '@/components/job-detail/automation-summary';
 import { AIBlueprintCard } from '@/components/job-detail/ai-blueprint';
-import { getJobById, getTasksByJobId, getAutomationBreakdown, getAIBlueprint } from '@/lib/mock-data';
+import { fetchJobById, fetchTasksForJob, fetchAutomationBreakdown, fetchAIBlueprint } from '@/lib/queries';
 import { notFound } from 'next/navigation';
-import { Save, Download, FileText, MapPin, DollarSign, Calendar, ExternalLink } from 'lucide-react';
+import { Save, Download, FileText, MapPin, DollarSign, Calendar, ExternalLink, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { AutomationBreakdown } from '@/lib/types';
 
-export default function JobDetailPage({ params }: { params: { id: string } }) {
-  const job = getJobById(params.id);
+export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  // Fetch all data in parallel
+  const [job, tasks, dbBreakdown, blueprint] = await Promise.all([
+    fetchJobById(id),
+    fetchTasksForJob(id),
+    fetchAutomationBreakdown(id),
+    fetchAIBlueprint(id),
+  ]);
 
   if (!job) {
     notFound();
   }
 
-  const tasks = getTasksByJobId(job.id);
-  const breakdown = getAutomationBreakdown(job.id);
-  const blueprint = getAIBlueprint(job.id);
+  // Determine if we have task-level analysis data
+  const hasTaskData = tasks.length > 0;
+
+  // Use database breakdown if available, otherwise derive from job's automation percentage
+  const breakdown: AutomationBreakdown = dbBreakdown ?? {
+    automatable: job.automationPercentage,
+    humanRequired: 100 - job.automationPercentage,
+    complexity: job.automationPercentage > 80 ? 'low' : job.automationPercentage > 60 ? 'medium' : 'high',
+  };
 
   return (
     <AppLayout>
@@ -138,54 +153,62 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
                 <div>
                   <h3 className="font-semibold mb-2">Description</h3>
-                  <p className="text-sm text-muted-foreground">{job.description}</p>
+                  <p className="text-sm text-muted-foreground">{job.description || 'No description available'}</p>
                 </div>
 
-                <div>
-                  <h3 className="font-semibold mb-2">Key Responsibilities</h3>
-                  <ul className="space-y-1">
-                    {job.responsibilities.map((resp, index) => (
-                      <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        {resp}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2">Requirements</h3>
-                  <ul className="space-y-1">
-                    {job.requirements.map((req, index) => (
-                      <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        {req}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2">Tools & Technologies</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {job.tools.map((tool) => (
-                      <Badge key={tool} variant="secondary">
-                        {tool}
-                      </Badge>
-                    ))}
+                {job.responsibilities.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Key Responsibilities</h3>
+                    <ul className="space-y-1">
+                      {job.responsibilities.map((resp, index) => (
+                        <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="text-blue-600 mt-1">•</span>
+                          {resp}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <h3 className="font-semibold mb-2">Skills Required</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {job.skills.map((skill) => (
-                      <Badge key={skill} variant="outline">
-                        {skill}
-                      </Badge>
-                    ))}
+                {job.requirements.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Requirements</h3>
+                    <ul className="space-y-1">
+                      {job.requirements.map((req, index) => (
+                        <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="text-blue-600 mt-1">•</span>
+                          {req}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                )}
+
+                {job.tools.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Tools & Technologies</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {job.tools.map((tool) => (
+                        <Badge key={tool} variant="secondary">
+                          {tool}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {job.skills.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Skills Required</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {job.skills.map((skill) => (
+                        <Badge key={skill} variant="outline">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -228,19 +251,50 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
               Detailed analysis of individual tasks and their automation potential
             </p>
           </div>
-          <TaskBreakdownTable tasks={tasks} />
+          {hasTaskData ? (
+            <TaskBreakdownTable tasks={tasks} />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Analysis Pending</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  Task-level automation analysis is not yet available for this job.
+                  This data will be populated once the job has been fully analyzed.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        <AIBlueprintCard blueprint={blueprint} />
+        {blueprint ? (
+          <AIBlueprintCard blueprint={blueprint} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Implementation Blueprint</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Analysis Pending</h3>
+              <p className="text-sm text-muted-foreground text-center max-w-md">
+                The AI implementation blueprint will be generated once the job has been fully analyzed.
+                Check back later for detailed automation recommendations.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <div className="flex justify-center">
-          <Button variant="outline" asChild>
-            <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer">
-              View Original Job Posting
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-        </div>
+        {job.sourceUrl && (
+          <div className="flex justify-center">
+            <Button variant="outline" asChild>
+              <a href={job.sourceUrl} target="_blank" rel="noopener noreferrer">
+                View Original Job Posting
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
