@@ -4,25 +4,27 @@ import { AutomationChart } from '@/components/dashboard/automation-chart';
 import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Briefcase, Building2, Percent, TrendingUp, ArrowRight } from 'lucide-react';
-import { mockJobs, mockCompanies, mockOpportunities } from '@/lib/mock-data';
+import { fetchDashboardStats, fetchJobs, fetchScraperRuns, fetchIndustryStats, fetchCompanyStats } from '@/lib/queries';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-export default function DashboardPage() {
-  const totalJobs = mockJobs.length;
-  const totalCompanies = mockCompanies.length;
-  const avgAutomation = Math.round(
-    mockJobs.reduce((acc, job) => acc + job.automationPercentage, 0) / mockJobs.length
-  );
-  const highOpportunityRoles = mockJobs.filter(job => job.opportunityScore >= 85).length;
+export default async function DashboardPage() {
+  // Fetch all data in parallel
+  const [stats, jobs, scraperRuns, industryStats, companyStats] = await Promise.all([
+    fetchDashboardStats(),
+    fetchJobs(),
+    fetchScraperRuns(5),
+    fetchIndustryStats(),
+    fetchCompanyStats(),
+  ]);
 
-  const topAutomatableRoles = [...mockJobs]
+  // Get top automatable roles (sorted by automation percentage)
+  const topAutomatableRoles = [...jobs]
     .sort((a, b) => b.automationPercentage - a.automationPercentage)
     .slice(0, 5);
 
-  const topCompanies = [...mockCompanies]
-    .sort((a, b) => b.totalJobs - a.totalJobs)
-    .slice(0, 5);
+  // Get top companies by job count (using fetchCompanyStats data)
+  const topCompanies = companyStats.slice(0, 5);
 
   return (
     <AppLayout>
@@ -37,30 +39,30 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <KPICard
             title="Total Jobs Analyzed"
-            value={totalJobs}
-            change="+12% from last month"
-            changeType="positive"
+            value={stats.totalJobs}
+            change={`${stats.jobsAddedToday} added today`}
+            changeType={stats.jobsAddedToday > 0 ? 'positive' : 'neutral'}
             icon={Briefcase}
           />
           <KPICard
             title="Companies Tracked"
-            value={totalCompanies}
-            change="+3 new this week"
-            changeType="positive"
+            value={stats.activeCompanies}
+            change="active companies"
+            changeType="neutral"
             icon={Building2}
           />
           <KPICard
             title="Avg Automation Potential"
-            value={`${avgAutomation}%`}
-            change="+2.3% vs last month"
-            changeType="positive"
+            value={`${stats.avgAutomation}%`}
+            change="across all roles"
+            changeType="neutral"
             icon={Percent}
             iconColor="text-green-600"
           />
           <KPICard
             title="High Opportunity Roles"
-            value={highOpportunityRoles}
-            change="85+ opportunity score"
+            value={stats.highOpportunityCount}
+            change=">75% automation"
             changeType="neutral"
             icon={TrendingUp}
             iconColor="text-orange-600"
@@ -79,32 +81,38 @@ export default function DashboardPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {topAutomatableRoles.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
-                    <div className="flex-1">
-                      <Link href={`/jobs/${job.id}`} className="text-sm font-medium hover:text-blue-600">
-                        {job.title}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">{job.company}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-green-600">
-                          {job.automationPercentage}%
-                        </p>
-                        <p className="text-xs text-muted-foreground">automation</p>
+              {topAutomatableRoles.length === 0 ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  No jobs available
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topAutomatableRoles.map((job) => (
+                    <div key={job.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                      <div className="flex-1">
+                        <Link href={`/jobs/${job.id}`} className="text-sm font-medium hover:text-blue-600">
+                          {job.title}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{job.company}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold">
-                          ${(job.estimatedSavings / 1000).toFixed(0)}K
-                        </p>
-                        <p className="text-xs text-muted-foreground">savings</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-green-600">
+                            {job.automationPercentage}%
+                          </p>
+                          <p className="text-xs text-muted-foreground">automation</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">
+                            ${(job.estimatedSavings / 1000).toFixed(0)}K
+                          </p>
+                          <p className="text-xs text-muted-foreground">savings</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -119,35 +127,41 @@ export default function DashboardPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {topCompanies.map((company) => (
-                  <div key={company.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{company.name}</p>
-                      <p className="text-xs text-muted-foreground">{company.industry}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-sm font-semibold">{company.totalJobs}</p>
-                        <p className="text-xs text-muted-foreground">jobs</p>
+              {topCompanies.length === 0 ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  No companies available
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {topCompanies.map((company) => (
+                    <div key={company.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{company.name}</p>
+                        <p className="text-xs text-muted-foreground">{company.industry}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-blue-600">
-                          {company.avgAutomation}%
-                        </p>
-                        <p className="text-xs text-muted-foreground">avg auto</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">{company.totalJobs}</p>
+                          <p className="text-xs text-muted-foreground">jobs</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-blue-600">
+                            {company.avgAutomation}%
+                          </p>
+                          <p className="text-xs text-muted-foreground">avg auto</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        <AutomationChart />
+        <AutomationChart data={industryStats} />
 
-        <RecentActivity />
+        <RecentActivity runs={scraperRuns} />
       </div>
     </AppLayout>
   );
